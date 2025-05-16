@@ -41,9 +41,9 @@ PYBIND11_MODULE(_core, m) {
         Subtract two numbers
     )pbdoc");
 
-    m.def("sin", [](double f, double y) {
+    m.def("sin", [](double f, double y, int start, int end, int samples) {
         
-        std::vector<double> fsin = linspace(0, (2 * pi), 100);
+        std::vector<double> fsin = linspace(start, end, samples);
         std::vector<double> ysin;
         for (double val : fsin) {
             ysin.push_back(std::sin(val*f)*y);
@@ -55,13 +55,13 @@ PYBIND11_MODULE(_core, m) {
         show();
 
         return ysin;    
-    }, py::arg("frequency"), py::arg("amplitude"), R"pbdoc(
+    }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Create sinus plot
     )pbdoc");
 
-    m.def("cos", [](double f, double y) {
+    m.def("cos", [](double f, double y, int start, int end, int samples) {
         
-        std::vector<double> fcos = linspace(0, (2 * pi), 100);
+        std::vector<double> fcos = linspace(start, (end), samples);
         std::vector<double> ycos;
         for (double val : fcos) {
             ycos.push_back(std::cos(val*f) * y);
@@ -73,13 +73,13 @@ PYBIND11_MODULE(_core, m) {
         show();
 
         return ycos;
-        }, py::arg("frequency"), py::arg("amplitude"), R"pbdoc(
+        }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Create cosinus plot
     )pbdoc");
 
-    m.def("sqrwave", [](double f, double A) {
+    m.def("sqrwave", [](double f, double A, int start, int end, int sample) {
         
-        std::vector<double> fsqw = linspace(0, (2 * pi), 500);
+        std::vector<double> fsqw = linspace(start, end, sample);
         std::vector<double> ysqw;
         for (double val : fsqw) {
             if (std::sin(val * f) < 0) ysqw.push_back(-A);
@@ -93,16 +93,17 @@ PYBIND11_MODULE(_core, m) {
         show();
 
         return 0;
-        }, py::arg("frequency"), py::arg("amplitude"), R"pbdoc(
+        }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Create square wave plot
     )pbdoc");
 
-    m.def("sawwave", [](double f, double A) {
+    m.def("sawwave", [](double f, double A, int start, int end, int sample) {
         
-        std::vector<double> fsaw = linspace(0, (2 * pi), 500);
+        std::vector<double> fsaw = linspace(start, end, sample);
         std::vector<double> ysaw;
         for (double val : fsaw) {
-                ysaw.push_back(((std::fmod((f*(val/pi)),(2.0)))-1)*A);
+                ysaw.push_back(((std::fmod((f*(val/pi)),(2.0)))-1)*A) << endl;
+                return 0;
         }
         plot(fsaw, ysaw);
         xlabel("x");
@@ -111,13 +112,15 @@ PYBIND11_MODULE(_core, m) {
         show();
 
         return 0;
-        }, py::arg("frequency"), py::arg("amplitude"), R"pbdoc(
+        }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Create sawwave plot
     )pbdoc");
 
-    m.def("fourier", [](std::vector<double> testPlot) {
-        int seqNr = 100;
-        std::vector<double> x = linspace(0, (2 * pi), seqNr);
+    m.def("fourier", [](std::vector<double> testPlot, int start, int end, int seqNr) {
+        if (testPlot.size() != seqNr) {
+            std::cout << "incorrect sample size, should be: " << testPlot.size();
+        }
+        std::vector<double> x = linspace(start, end, seqNr);
         std::vector<double> y;
         for (int k = 0; k < seqNr; ++k) {
             std::complex<double> fourierX = 0;
@@ -134,13 +137,16 @@ PYBIND11_MODULE(_core, m) {
         show();
 
         return y;
-        }, py::arg("plot"), R"pbdoc(
+        }, py::arg("plot"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Discrete Fourier transform
     )pbdoc");
 
-    m.def("inv_fourier", [](std::vector<double> testPlot) {
-        int seqNr = 100;
-        std::vector<double> x = linspace(0, (2 * pi), seqNr);
+    m.def("inv_fourier", [](std::vector<double> testPlot, int start, int end, int seqNr) {
+        if (testPlot.size() != seqNr) {
+            std::cout << "incorrect sample size, should be: " << testPlot.size() << endl;
+            return 0;
+        }
+        std::vector<double> x = linspace(start, end, seqNr);
         std::vector<double> y;
         for (int k = 0; k < seqNr; ++k) {
             std::complex<double> inv_fourierX = 0;
@@ -157,7 +163,7 @@ PYBIND11_MODULE(_core, m) {
         show();
 
         return 0;
-        }, py::arg("plot"), R"pbdoc(
+        }, py::arg("DFT"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Inverted discrete Fourier transform
     )pbdoc");
 
