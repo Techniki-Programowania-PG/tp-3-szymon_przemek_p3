@@ -18,7 +18,7 @@ public:
     ResultVector() = default;
     ResultVector(const std::vector<double>& x_plot, const std::vector<double>& y_plot) :x(x_plot), y(y_plot) {};
 
-    ResultVector operator+(const ResultVector& other) const {
+    ResultVector operator+(const ResultVector& other) const { //jeœli ta sama wielkoœæ wektorów to zsumuj je za pomoc¹ (przeci¹¿onego) "+"
         std::vector<double> sum(y.size());
         if (x != other.x) {
             std::cout << "sizes differs! ";
@@ -29,38 +29,18 @@ public:
             [](double v1, double v2) {return (v1 + v2); });
         return ResultVector(x, sum);
     }
+
+    ResultVector operator*(double scalar) const {//this -> Result vector, czyli x i y, other -> scalar
+        std::vector<double>multiplication(y.size());
+        std::transform(y.begin(), y.end(), multiplication.begin(),
+            [scalar](double v0) {return (scalar * v0); });
+        return ResultVector (x, multiplication); // wynik wektor * skalar
+    }
 };
 
 int add(int i, int j) {
     return i + j;
 }
-
-std::vector<double> operator*(const std::vector<double>& vec, double scalar) {
-    std::vector<double> result(vec.size());
-    std::transform(vec.begin(), vec.end(), result.begin(),
-        [scalar](double v) { return v * scalar; });
-    return result;
-}
-
-
-std::vector<double> operator*(double scalar, const std::vector<double>& vec) {
-    return vec * scalar;
-}
-
-//przenoszenie overloadingu do klasy
-
-
-//std::vector<double> operator+(const std::vector<double>& vec1, const std::vector<double>& vec2) {
-//    std::vector<double> sum(vec1.size());
-//    if (vec1.size() != vec2.size()) {
-//        std::cout << "sizes differs: " << vec1.size() << " != " << vec2.size();
-//        sum = { 0 };
-//        return sum;
-//    }
-//    std::transform(vec1.begin(), vec1.end(), vec2.begin(), sum.begin(),
-//        [](double v1, double v2) {return (v1 + v2); });
-//    return sum;
-//}
 
 namespace py = pybind11;
 using namespace matplot;
@@ -71,7 +51,11 @@ PYBIND11_MODULE(_core, m) {
         .def(py::init<const std::vector<double>&, const std::vector<double>&>())
         .def_readwrite("x", &ResultVector::x)
         .def_readwrite("y", &ResultVector::y)
-        .def("__add__", &ResultVector::operator+);
+        .def("__add__", &ResultVector::operator+) //vector + vector, jeœli te same end start i samples
+        .def("__mul__", &ResultVector::operator*) //vector * scalar
+        .def("__rmul__", [](const ResultVector& vec, double scalar) { //rmul bierze na odwrót argumenty, czyli taki zapis odpowiada scalar * vector
+        return vec * scalar;
+            });
 
 
     m.doc() = R"pbdoc(
@@ -161,8 +145,8 @@ PYBIND11_MODULE(_core, m) {
         ylabel("sqwave(x)");
         grid(on);
         show();
-
-        return 0;
+        ResultVector sqwPlot(fsqw, ysqw);
+        return sqwPlot;
         }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Create square wave plot
     )pbdoc");
@@ -172,15 +156,14 @@ PYBIND11_MODULE(_core, m) {
         std::vector<double> ysaw;
         for (double val : fsaw) {
             ysaw.push_back(((std::fmod((f * (val / pi)), (2.0))) - 1) * A);
-                return 0;
         }
         plot(fsaw, ysaw);
         xlabel("x");
         ylabel("saw wave(x)");
         grid(on);
         show();
-
-        return 0;
+        ResultVector sawPlot(fsaw, ysaw);
+        return sawPlot;
         }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Create sawwave plot
     )pbdoc");
@@ -201,21 +184,21 @@ PYBIND11_MODULE(_core, m) {
         ylabel("fft(t)");
         grid(on);
         show();
-
-        return y;
+        ResultVector dftPlot(x, y);
+        return dftPlot;
         }, py::arg("plot"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Discrete Fourier transform
     )pbdoc");
 
-    m.def("inv_fourier", [](std::vector<double> testPlot, double start, double end) {
-        int seqNr = testPlot.size();
+    m.def("inv_fourier", [](ResultVector testPlot, double start, double end) {
+        int seqNr = testPlot.x.size();
         std::vector<double> x = linspace(start, end, seqNr);
         std::vector<double> y;
         for (int k = 0; k < seqNr; ++k) {
             std::complex<double> inv_fourierX = 0;
             for (int n = 0; n < seqNr; ++n) {
                 double angle = 2.0 * pi * (double(k) / double(seqNr)) * n;
-                inv_fourierX += testPlot[n] * (std::exp(i * angle));
+                inv_fourierX += testPlot.y[n] * (std::exp(i * angle));
             }
             y.push_back((1.0/seqNr)*inv_fourierX.real());
         }
@@ -224,11 +207,21 @@ PYBIND11_MODULE(_core, m) {
         ylabel("inv_fft(t)");
         grid(on);
         show();
-
-        return 0;
+        ResultVector idftPlot(x, y);
+        return idftPlot;
         }, py::arg("DFT"), py::arg("start"), py::arg("end"), R"pbdoc(
         Inverted discrete Fourier transform
     )pbdoc");
 
     m.attr("__version__") = "dev";
 }
+//////////////////
+//// poprawiæ transformatê odwrotn¹ i 
+//plot(x, y);
+//xlabel("t");
+//ylabel("inv_fft(t)");
+//grid(on);
+//show();
+///  zamieniæ to na funkcjê jedn¹
+///  i usun¹æ amplitudy z funkcji (bo jest przeci¹¿ony *)
+/// wtedy zosta³y chyba tylko filtry 1D/2D i dodatkowe wymagania
