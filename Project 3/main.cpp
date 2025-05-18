@@ -5,8 +5,10 @@
 #include <vector>
 #include <cmath>
 #include <complex>
+#include <iostream>
 
 constexpr std::complex<double> i(0.0, 1.0);
+const std::vector<std::complex<double>> cplx0;
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
 
@@ -14,27 +16,28 @@ class ResultVector {
 public:
     std::vector<double> x;
     std::vector<double> y;
+    std::vector<std::complex<double>> j;
 
     ResultVector() = default;
-    ResultVector(const std::vector<double>& x_plot, const std::vector<double>& y_plot) :x(x_plot), y(y_plot) {};
+    ResultVector(const std::vector<double>& x_plot, const std::vector<double>& y_plot, const std::vector<std::complex<double>>& complex) :x(x_plot), y(y_plot), j(complex) {};
 
     ResultVector operator+(const ResultVector& other) const { //jeœli ta sama wielkoœæ wektorów to zsumuj je za pomoc¹ (przeci¹¿onego) "+"
         std::vector<double> sum(y.size());
         if (x != other.x) {
             std::cout << "sizes differs! ";
             sum = { 0 };
-            return ResultVector(x, sum);
+            return ResultVector(x, sum, cplx0);
         }
         std::transform(y.begin(), y.end(), other.y.begin(), sum.begin(),
             [](double v1, double v2) {return (v1 + v2); });
-        return ResultVector(x, sum);
+        return ResultVector(x, sum, cplx0);
     }
 
     ResultVector operator*(double scalar) const {//this -> Result vector, czyli x i y, other -> scalar
         std::vector<double>multiplication(y.size());
         std::transform(y.begin(), y.end(), multiplication.begin(),
             [scalar](double v0) {return (scalar * v0); });
-        return ResultVector (x, multiplication); // wynik wektor * skalar
+        return ResultVector(x, multiplication, cplx0); // wynik wektor * skalar
     }
 };
 
@@ -48,9 +51,10 @@ using namespace matplot;
 PYBIND11_MODULE(_core, m) {
     py::class_<ResultVector>(m, "ResultVector")
         .def(py::init<>())
-        .def(py::init<const std::vector<double>&, const std::vector<double>&>())
+        .def(py::init<const std::vector<double>&, const std::vector<double>&, const std::vector<std::complex<double>>&>())
         .def_readwrite("x", &ResultVector::x)
         .def_readwrite("y", &ResultVector::y)
+        .def_readwrite("j", &ResultVector::j)
         .def("__add__", &ResultVector::operator+) //vector + vector, jeœli te same end start i samples
         .def("__mul__", &ResultVector::operator*) //vector * scalar
         .def("__rmul__", [](const ResultVector& vec, double scalar) { //rmul bierze na odwrót argumenty, czyli taki zapis odpowiada scalar * vector
@@ -102,12 +106,12 @@ PYBIND11_MODULE(_core, m) {
         for (double val : fsin) {
             ysin.push_back(std::sin(val*f)*y);
         }
-        plot(fsin, ysin);
-        xlabel("x");
-        ylabel("sin(x)");
-        grid(on);
-        show();
-        ResultVector sinPlot(fsin, ysin);
+        //plot(fsin, ysin);
+        //xlabel("x");
+        //ylabel("sin(x)");
+        //grid(on);
+        //show();
+        ResultVector sinPlot(fsin, ysin, cplx0);
         return sinPlot;
     }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Create sinus plot
@@ -120,12 +124,12 @@ PYBIND11_MODULE(_core, m) {
         for (double val : fcos) {
             ycos.push_back(std::cos(val*f) * y);
         }
-        plot(fcos, ycos);
-        xlabel("x");
-        ylabel("cos(x)");
-        grid(on);
-        show();
-        ResultVector cosPlot(fcos, ycos);
+        //plot(fcos, ycos);
+        //xlabel("x");
+        //ylabel("cos(x)");
+        //grid(on);
+        //show();
+        ResultVector cosPlot(fcos, ycos, cplx0);
         return cosPlot;
         }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Create cosinus plot
@@ -140,12 +144,12 @@ PYBIND11_MODULE(_core, m) {
             else if (std::sin(val * f) > 0) ysqw.push_back(A);
             else ysqw.push_back(0);
         }
-        plot(fsqw, ysqw);
-        xlabel("x");
-        ylabel("sqwave(x)");
-        grid(on);
-        show();
-        ResultVector sqwPlot(fsqw, ysqw);
+        //plot(fsqw, ysqw);
+        //xlabel("x");
+        //ylabel("sqwave(x)");
+        //grid(on);
+        //show();
+        ResultVector sqwPlot(fsqw, ysqw, cplx0);
         return sqwPlot;
         }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Create square wave plot
@@ -157,12 +161,12 @@ PYBIND11_MODULE(_core, m) {
         for (double val : fsaw) {
             ysaw.push_back(((std::fmod((f * (val / pi)), (2.0))) - 1) * A);
         }
-        plot(fsaw, ysaw);
-        xlabel("x");
-        ylabel("saw wave(x)");
-        grid(on);
-        show();
-        ResultVector sawPlot(fsaw, ysaw);
+        //plot(fsaw, ysaw);
+        //xlabel("x");
+        //ylabel("saw wave(x)");
+        //grid(on);
+        //show();
+        ResultVector sawPlot(fsaw, ysaw, cplx0);
         return sawPlot;
         }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Create sawwave plot
@@ -171,20 +175,22 @@ PYBIND11_MODULE(_core, m) {
     m.def("fourier", [](ResultVector testPlot, double start, double end, int seqNr) {
         std::vector<double> x = linspace(start, end, seqNr);
         std::vector<double> y;
+        std::vector<std::complex<double>> complexVec;
         for (int k = 0; k < seqNr; ++k) {
             std::complex<double> fourierX = 0;
             for (int n = 0; n < seqNr; ++n) {
-                double angle = -2.0 * pi * (double(k) / double(seqNr)) * n;
-                fourierX += testPlot.y[n] * (std::exp(i * angle));
+                double angle = 2.0 * pi * (double(k) / double(seqNr)) * n;
+                fourierX += testPlot.y[n] * (std::exp(-i * angle));
             }
+            complexVec.push_back(fourierX);
             y.push_back(std::abs(fourierX));
         }
-        plot(x, y);
-        xlabel("t");
-        ylabel("fft(t)");
-        grid(on);
-        show();
-        ResultVector dftPlot(x, y);
+        //plot(x, y);
+        //xlabel("t");
+        //ylabel("fft(t)");
+        //grid(on);
+        //show();
+        ResultVector dftPlot(x, y, complexVec);
         return dftPlot;
         }, py::arg("plot"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Discrete Fourier transform
@@ -194,20 +200,22 @@ PYBIND11_MODULE(_core, m) {
         int seqNr = testPlot.x.size();
         std::vector<double> x = linspace(start, end, seqNr);
         std::vector<double> y;
+        std::vector<std::complex<double>> complexVec;
         for (int k = 0; k < seqNr; ++k) {
             std::complex<double> inv_fourierX = 0;
             for (int n = 0; n < seqNr; ++n) {
                 double angle = 2.0 * pi * (double(k) / double(seqNr)) * n;
-                inv_fourierX += testPlot.y[n] * (std::exp(i * angle));
+                inv_fourierX += testPlot.j[n] * (std::exp(i * angle));
             }
-            y.push_back((1.0/seqNr)*inv_fourierX.real());
+            y.push_back((1.0 / seqNr) * (inv_fourierX.real()));
+            complexVec.push_back((1.0 / seqNr) * inv_fourierX);
         }
-        plot(x, y);
-        xlabel("t");
-        ylabel("inv_fft(t)");
-        grid(on);
-        show();
-        ResultVector idftPlot(x, y);
+        //plot(x, y);
+        //xlabel("t");
+        //ylabel("inv_fft(t)");
+        //grid(on);
+        //show();
+        ResultVector idftPlot(x, y, complexVec);
         return idftPlot;
         }, py::arg("DFT"), py::arg("start"), py::arg("end"), R"pbdoc(
         Inverted discrete Fourier transform
@@ -216,12 +224,9 @@ PYBIND11_MODULE(_core, m) {
     m.attr("__version__") = "dev";
 }
 //////////////////
-//// poprawiæ transformatê odwrotn¹ i 
-//plot(x, y);
-//xlabel("t");
-//ylabel("inv_fft(t)");
-//grid(on);
-//show();
-///  zamieniæ to na funkcjê jedn¹
+// 
+// 
+// Sprawdzic czy funkcja plot zawsze dzia³a
+/// 
 ///  i usun¹æ amplitudy z funkcji (bo jest przeci¹¿ony *)
 /// wtedy zosta³y chyba tylko filtry 1D/2D i dodatkowe wymagania
