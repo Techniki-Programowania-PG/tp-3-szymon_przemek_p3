@@ -6,6 +6,7 @@
 #include <cmath>
 #include <complex>
 #include <iostream>
+#include <random>
 
 constexpr std::complex<double> i(0.0, 1.0);
 const std::vector<std::complex<double>> cplx0;
@@ -103,14 +104,17 @@ PYBIND11_MODULE(_core, m) {
         
         std::vector<double> fsin = linspace(start, end, samples);
         std::vector<double> ysin;
+
+        ////////////
+        std::default_random_engine generator(std::random_device{}());
+        std::normal_distribution<double> noise_dist(0.0, 0.08);  // szum Gaussowski (œrednia = 0, stddev = noise_level)
+        ///////////
         for (double val : fsin) {
-            ysin.push_back(std::sin(val*f)*y);
+            double pure = std::sin(val * f) * y;
+            double noise = noise_dist(generator);
+            ysin.push_back(pure + noise);
+            //ysin.push_back(std::sin(val*f)*y);
         }
-        //plot(fsin, ysin);
-        //xlabel("x");
-        //ylabel("sin(x)");
-        //grid(on);
-        //show();
         ResultVector sinPlot(fsin, ysin, cplx0);
         return sinPlot;
     }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
@@ -119,16 +123,11 @@ PYBIND11_MODULE(_core, m) {
 
     m.def("cos", [](double f, double y, double start, double end, int samples) {
         
-        std::vector<double> fcos = linspace(start, (end), samples);
+        std::vector<double> fcos = linspace(start, end, samples);
         std::vector<double> ycos;
         for (double val : fcos) {
             ycos.push_back(std::cos(val*f) * y);
         }
-        //plot(fcos, ycos);
-        //xlabel("x");
-        //ylabel("cos(x)");
-        //grid(on);
-        //show();
         ResultVector cosPlot(fcos, ycos, cplx0);
         return cosPlot;
         }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
@@ -144,11 +143,6 @@ PYBIND11_MODULE(_core, m) {
             else if (std::sin(val * f) > 0) ysqw.push_back(A);
             else ysqw.push_back(0);
         }
-        //plot(fsqw, ysqw);
-        //xlabel("x");
-        //ylabel("sqwave(x)");
-        //grid(on);
-        //show();
         ResultVector sqwPlot(fsqw, ysqw, cplx0);
         return sqwPlot;
         }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
@@ -161,11 +155,6 @@ PYBIND11_MODULE(_core, m) {
         for (double val : fsaw) {
             ysaw.push_back(((std::fmod((f * (val / pi)), (2.0))) - 1) * A);
         }
-        //plot(fsaw, ysaw);
-        //xlabel("x");
-        //ylabel("saw wave(x)");
-        //grid(on);
-        //show();
         ResultVector sawPlot(fsaw, ysaw, cplx0);
         return sawPlot;
         }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
@@ -185,11 +174,6 @@ PYBIND11_MODULE(_core, m) {
             complexVec.push_back(fourierX);
             y.push_back(std::abs(fourierX));
         }
-        //plot(x, y);
-        //xlabel("t");
-        //ylabel("fft(t)");
-        //grid(on);
-        //show();
         ResultVector dftPlot(x, y, complexVec);
         return dftPlot;
         }, py::arg("plot"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
@@ -210,23 +194,46 @@ PYBIND11_MODULE(_core, m) {
             y.push_back((1.0 / seqNr) * (inv_fourierX.real()));
             complexVec.push_back((1.0 / seqNr) * inv_fourierX);
         }
-        //plot(x, y);
-        //xlabel("t");
-        //ylabel("inv_fft(t)");
-        //grid(on);
-        //show();
         ResultVector idftPlot(x, y, complexVec);
         return idftPlot;
         }, py::arg("DFT"), py::arg("start"), py::arg("end"), R"pbdoc(
         Inverted discrete Fourier transform
     )pbdoc");
 
+    m.def("filter1D", [](ResultVector testPlot) {
+            std::vector<double> filter = {0.006, 0.061, 0.242, 0.383, 0.242, 0.061, 0.006};// filtr gaussa
+            std::vector<double> out_plot;
+            int filter_size = filter.size();
+            int offset = filter_size / 2;
+            int n = testPlot.y.size();
+            double sum;
+            for (int k = 0; k < n; ++k) {
+                sum = 0;
+                for (int r = 0; r < filter_size; ++r) {
+                    int plot_index = k + r - offset;
+                    if (plot_index >= 0 && plot_index < n) {
+                        sum += (testPlot.y[plot_index] * filter[r]);
+                    } else {
+                        int padding;
+                        if (plot_index < 0) padding = 0;
+                        else if (plot_index > (n - 1)) padding = (n - 1);
+                        else padding = plot_index;
+                        sum += testPlot.y[padding] * filter[r];
+                    }
+                }
+                out_plot.push_back(sum);
+            }
+            ResultVector filteredPlot(testPlot.x, out_plot, testPlot.j);
+            return filteredPlot;
+        }, py::arg("plot"), R"pbdoc(
+        Inverted discrete Fourier transform
+    )pbdoc");
+
+
+
     m.attr("__version__") = "dev";
 }
 //////////////////
-// 
-// 
-// Sprawdzic czy funkcja plot zawsze dzia³a
 /// 
 ///  i usun¹æ amplitudy z funkcji (bo jest przeci¹¿ony *)
 /// wtedy zosta³y chyba tylko filtry 1D/2D i dodatkowe wymagania
