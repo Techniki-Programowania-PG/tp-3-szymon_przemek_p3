@@ -47,7 +47,6 @@ int add(int i, int j) {
 }
 
 namespace py = pybind11;
-using namespace matplot;
 
 PYBIND11_MODULE(_core, m) {
     py::class_<ResultVector>(m, "ResultVector")
@@ -82,9 +81,12 @@ PYBIND11_MODULE(_core, m) {
     )pbdoc";
 
     m.def("plot", [](ResultVector plot) {
+        using namespace matplot;
+        figure();
         matplot::plot(plot.x, plot.y);
         xlabel("x");
         ylabel("y(x)");
+        axis(on);
         grid(on);
         show();
         }, py::arg("plot"), R"pbdoc(
@@ -102,18 +104,11 @@ PYBIND11_MODULE(_core, m) {
 
     m.def("sin", [](double f, double y, double start, double end, int samples) {
         
-        std::vector<double> fsin = linspace(start, end, samples);
+        std::vector<double> fsin = matplot::linspace(start, end, samples);
         std::vector<double> ysin;
 
-        ////////////
-        std::default_random_engine generator(std::random_device{}());
-        std::normal_distribution<double> noise_dist(0.0, 0.08);  // szum Gaussowski (œrednia = 0, stddev = noise_level)
-        ///////////
         for (double val : fsin) {
-            double pure = std::sin(val * f) * y;
-            double noise = noise_dist(generator);
-            ysin.push_back(pure + noise);
-            //ysin.push_back(std::sin(val*f)*y);
+            ysin.push_back(std::sin(val*f)*y);
         }
         ResultVector sinPlot(fsin, ysin, cplx0);
         return sinPlot;
@@ -123,7 +118,7 @@ PYBIND11_MODULE(_core, m) {
 
     m.def("cos", [](double f, double y, double start, double end, int samples) {
         
-        std::vector<double> fcos = linspace(start, end, samples);
+        std::vector<double> fcos = matplot::linspace(start, end, samples);
         std::vector<double> ycos;
         for (double val : fcos) {
             ycos.push_back(std::cos(val*f) * y);
@@ -136,7 +131,7 @@ PYBIND11_MODULE(_core, m) {
 
     m.def("sqrwave", [](double f, double A, double start, double end, int sample) {
         
-        std::vector<double> fsqw = linspace(start, end, sample);
+        std::vector<double> fsqw = matplot::linspace(start, end, sample);
         std::vector<double> ysqw;
         for (double val : fsqw) {
             if (std::sin(val * f) < 0) ysqw.push_back(-A);
@@ -150,10 +145,10 @@ PYBIND11_MODULE(_core, m) {
     )pbdoc");
 
     m.def("sawwave", [](double f, double A, double start, double end, int sample) {        
-        std::vector<double> fsaw = linspace(start, end, sample);
+        std::vector<double> fsaw = matplot::linspace(start, end, sample);
         std::vector<double> ysaw;
         for (double val : fsaw) {
-            ysaw.push_back(((std::fmod((f * (val / pi)), (2.0))) - 1) * A);
+            ysaw.push_back(((std::fmod((f * (val / matplot::pi)), (2.0))) - 1) * A);
         }
         ResultVector sawPlot(fsaw, ysaw, cplx0);
         return sawPlot;
@@ -162,13 +157,13 @@ PYBIND11_MODULE(_core, m) {
     )pbdoc");
 
     m.def("fourier", [](ResultVector testPlot, double start, double end, int seqNr) {
-        std::vector<double> x = linspace(start, end, seqNr);
+        std::vector<double> x = matplot::linspace(start, end, seqNr);
         std::vector<double> y;
         std::vector<std::complex<double>> complexVec;
         for (int k = 0; k < seqNr; ++k) {
             std::complex<double> fourierX = 0;
             for (int n = 0; n < seqNr; ++n) {
-                double angle = 2.0 * pi * (double(k) / double(seqNr)) * n;
+                double angle = 2.0 * matplot::pi * (double(k) / double(seqNr)) * n;
                 fourierX += testPlot.y[n] * (std::exp(-i * angle));
             }
             complexVec.push_back(fourierX);
@@ -182,13 +177,13 @@ PYBIND11_MODULE(_core, m) {
 
     m.def("inv_fourier", [](ResultVector testPlot, double start, double end) {
         int seqNr = testPlot.x.size();
-        std::vector<double> x = linspace(start, end, seqNr);
+        std::vector<double> x = matplot::linspace(start, end, seqNr);
         std::vector<double> y;
         std::vector<std::complex<double>> complexVec;
         for (int k = 0; k < seqNr; ++k) {
             std::complex<double> inv_fourierX = 0;
             for (int n = 0; n < seqNr; ++n) {
-                double angle = 2.0 * pi * (double(k) / double(seqNr)) * n;
+                double angle = 2.0 * matplot::pi * (double(k) / double(seqNr)) * n;
                 inv_fourierX += testPlot.j[n] * (std::exp(i * angle));
             }
             y.push_back((1.0 / seqNr) * (inv_fourierX.real()));
@@ -199,6 +194,18 @@ PYBIND11_MODULE(_core, m) {
         }, py::arg("DFT"), py::arg("start"), py::arg("end"), R"pbdoc(
         Inverted discrete Fourier transform
     )pbdoc");
+
+    m.def("noise", [](ResultVector plot, double power) {
+        std::default_random_engine generator(std::random_device{}());
+        std::normal_distribution<double> noise_dist(0.0, power * 0.02);
+
+        for (int i = 1; i < plot.y.size(); ++i) {
+            double pure = plot.y[i];
+            double noise = noise_dist(generator);
+            plot.y[i] = (pure + noise);
+        }
+        return plot;
+        }, py::arg("plot"), py::arg("noise_level"));
 
     m.def("filter1D", [](ResultVector testPlot) {
             std::vector<double> filter = {0.006, 0.061, 0.242, 0.383, 0.242, 0.061, 0.006};// filtr gaussa
@@ -225,10 +232,20 @@ PYBIND11_MODULE(_core, m) {
             }
             ResultVector filteredPlot(testPlot.x, out_plot, testPlot.j);
             return filteredPlot;
-        }, py::arg("plot"), R"pbdoc(
-        Inverted discrete Fourier transform
-    )pbdoc");
+        }, py::arg("plot"));
 
+    m.def("filter2D", []() {
+        using namespace matplot;
+        auto [X, Y] = meshgrid(linspace(-3, +3, 50), linspace(-3, +3, 50));
+        auto Z = transform(X, Y, [](double x, double y) {
+            return 10 * 2 + pow(x, 2) - 10 * cos(2 * pi * x) + pow(y, 2) -
+                10 * cos(2 * pi * y);
+            });
+        surf(X, Y, Z);
+
+        show();
+        return Z;
+        });
 
 
     m.attr("__version__") = "dev";
