@@ -22,10 +22,10 @@ public:
     ResultVector() = default;
     ResultVector(const std::vector<double>& x_plot, const std::vector<double>& y_plot, const std::vector<std::complex<double>>& complex) :x(x_plot), y(y_plot), j(complex) {};
 
-    ResultVector operator+(const ResultVector& other) const { //jeœli ta sama wielkoœæ wektorów to zsumuj je za pomoc¹ (przeci¹¿onego) "+"
+    ResultVector operator+(const ResultVector& other) const { //jeÅ“li ta sama wielkoÅ“Ã¦ wektorÃ³w to zsumuj je za pomocÂ¹ (przeciÂ¹Â¿onego) "+"
         std::vector<double> sum(y.size());
         if (x != other.x) {
-            std::cout << "sizes differs! ";
+            std::cout << "sizes differ! ";
             sum = { 0 };
             return ResultVector(x, sum, cplx0);
         }
@@ -55,9 +55,9 @@ PYBIND11_MODULE(_core, m) {
         .def_readwrite("x", &ResultVector::x)
         .def_readwrite("y", &ResultVector::y)
         .def_readwrite("j", &ResultVector::j)
-        .def("__add__", &ResultVector::operator+) //vector + vector, jeœli te same end start i samples
+        .def("__add__", &ResultVector::operator+) //vector + vector, jeÅ“li te same end start i samples
         .def("__mul__", &ResultVector::operator*) //vector * scalar
-        .def("__rmul__", [](const ResultVector& vec, double scalar) { //rmul bierze na odwrót argumenty, czyli taki zapis odpowiada scalar * vector
+        .def("__rmul__", [](const ResultVector& vec, double scalar) { //rmul bierze na odwrÃ³t argumenty, czyli taki zapis odpowiada scalar * vector
         return vec * scalar;
             });
 
@@ -78,6 +78,9 @@ PYBIND11_MODULE(_core, m) {
            square wave
            saw wave
            DFT - Discrete Fourier Transformation (and inversion)
+           Gaussian noise
+           1D & 2D filter
+           correlation between two signals
     )pbdoc";
 
     m.def("plot", [](ResultVector plot) {
@@ -247,10 +250,29 @@ PYBIND11_MODULE(_core, m) {
         return Z;
         });
 
+    m.def("correlation", [](ResultVector testPlot1, ResultVector testPlot2) {
+        std::vector<double> out_plot;
+        if(testPlot1.x != testPlot2.x) {
+            std::cout << "sizes differ!";
+            out_plot = { 0 };
+            return ResultVector(testPlot1.x, out_plot, cplx0);
+		}
+		int plotSize = testPlot1.y.size();
+        long double sum;
+        for (int n = 0; n < plotSize; ++n) {
+            sum = 0;
+            for (int k = 0; k < plotSize; ++k) {
+                if (k + n < plotSize)
+				    sum += (testPlot1.y[k] * testPlot2.y[k + n]);
+            }
+			out_plot.push_back(sum);
+        }
+
+		ResultVector correlationPlot(testPlot1.x, out_plot, cplx0);
+        return correlationPlot;
+    	}, py::arg("plot1"), py::arg("plot2"), R"pbdoc(
+            Create correlation plot
+        )pbdoc");
 
     m.attr("__version__") = "dev";
 }
-//////////////////
-/// 
-///  i usun¹æ amplitudy z funkcji (bo jest przeci¹¿ony *)
-/// wtedy zosta³y chyba tylko filtry 1D/2D i dodatkowe wymagania
