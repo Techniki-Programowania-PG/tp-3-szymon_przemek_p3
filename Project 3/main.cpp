@@ -178,6 +178,29 @@ PYBIND11_MODULE(_core, m) {
         Discrete Fourier transform
     )pbdoc");
 
+    m.def("frequenciesDFT", [](ResultVector testPlot, int end, int sampleSize, int range2pi) {
+        if (range2pi * end + 1 > sampleSize - 1 || range2pi * end < 1)
+        {
+            range2pi = 1;
+            end = sampleSize - 1;
+        }
+        std::vector<double> x = matplot::linspace(0, end, range2pi*end+1);
+        std::vector<double> y;
+
+        for (int i = 0; i < range2pi * (end + 1); i++)
+            y.push_back(testPlot.y[i]);
+
+        ResultVector shortPlot(x, y, testPlot.j);
+        return shortPlot;
+
+        }, py::arg("plot"), py::arg("end"), py::arg("sampleSize"), py::arg("rangeBy2pi"), R"pbdoc(
+        transform DFT plot to see the frequencies clearer (works best for sine & cosine functions)
+
+        rangeBy2pi is the original range of the signal, before the DFT transformation, divided by 2pi
+
+        frequencies only show if they are equal to (n/rangeBy2pi), where n is any natural number
+    )pbdoc");
+
     m.def("inv_fourier", [](ResultVector testPlot, double start, double end) {
         int seqNr = testPlot.x.size();
         std::vector<double> x = matplot::linspace(start, end, seqNr);
@@ -256,23 +279,23 @@ PYBIND11_MODULE(_core, m) {
             std::cout << "sizes differ!";
             out_plot = { 0 };
             return ResultVector(testPlot1.x, out_plot, cplx0);
-		}
-		int plotSize = testPlot1.y.size();
+	}
+	int plotSize = testPlot1.y.size();
         long double sum;
         for (int n = 0; n < plotSize; ++n) {
             sum = 0;
             for (int k = 0; k < plotSize; ++k) {
                 if (k + n < plotSize)
-				    sum += (testPlot1.y[k] * testPlot2.y[k + n]);
+		    sum += (testPlot1.y[k] * testPlot2.y[k + n]);
             }
-			out_plot.push_back(sum);
+	    out_plot.push_back(sum);
         }
 
-		ResultVector correlationPlot(testPlot1.x, out_plot, cplx0);
+	ResultVector correlationPlot(testPlot1.x, out_plot, cplx0);
         return correlationPlot;
     	}, py::arg("plot1"), py::arg("plot2"), R"pbdoc(
             Create correlation plot
-        )pbdoc");
+    )pbdoc");
 
     m.attr("__version__") = "dev";
 }
