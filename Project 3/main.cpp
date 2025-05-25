@@ -260,18 +260,64 @@ PYBIND11_MODULE(_core, m) {
             return filteredPlot;
         }, py::arg("plot"));
 
-    m.def("filter2D", []() {
+    m.def("filter2D", [](int samples) {
         using namespace matplot;
-        auto [X, Y] = meshgrid(linspace(-3, +3, 50), linspace(-3, +3, 50));
-        auto Z = transform(X, Y, [](double x, double y) {
-            return 10 * 2 + pow(x, 2) - 10 * cos(2 * pi * x) + pow(y, 2) -
-                10 * cos(2 * pi * y);
+        std::default_random_engine generator(std::random_device{}());
+        std::normal_distribution<double> noise_dist(0.0, 10.0);
+        auto [X, Y] = meshgrid(linspace(-3, +3, samples), linspace(-3, +3, samples));
+        auto testZ = transform(X, Y, [](double x, double y) {
+            return (10 * 2 + pow(x, 2) - 10 * cos(2 * pi * x) + pow(y, 2) -
+                10 * cos(2 * pi * y));
             });
+        figure();
+        surf(X, Y, testZ);
+        show();
+        auto Z = transform(X, Y, [generator, noise_dist](double x, double y) mutable {
+            double noise = noise_dist(generator);
+            return (10 * 2 + pow(x, 2) - 10 * cos(2 * pi * x) + pow(y, 2) -
+                10 * cos(2 * pi * y)) + noise;
+            });
+        figure();
         surf(X, Y, Z);
 
         show();
-        return Z;
-        });
+
+        std::vector<std::vector<double>> gausss2dFilter = {
+    {0.0039, 0.0156, 0.0234, 0.0156, 0.0039},
+    {0.0156, 0.0625, 0.0938, 0.0625, 0.0156},
+    {0.0234, 0.0938, 0.1406, 0.0938, 0.0234},
+    {0.0156, 0.0625, 0.0938, 0.0625, 0.0156},
+    {0.0039, 0.0156, 0.0234, 0.0156, 0.0039}
+        };
+
+        double output;
+        auto Z_filtered = Z;
+        int offset = gausss2dFilter.size() / 2;
+
+        for (int i = 0; i < samples; ++i) {
+            for (int j = 0; j < samples; ++j) {
+                output = 0.0;
+                for (int m = 0; m < gausss2dFilter.size(); ++m) {
+                    for (int n = 0; n < gausss2dFilter[m].size(); ++n) {
+                        int iPadding = i - offset + m;
+                        if (iPadding < 0) iPadding = 0;
+                        if (iPadding >= samples) iPadding = samples - 1;
+
+                        int jPadding = j - offset + n;
+                        if (jPadding < 0) jPadding = 0;
+                        if (jPadding >= samples) jPadding = samples - 1;
+
+                        output += Z[iPadding][jPadding] * gausss2dFilter[m][n];
+                    }
+                }
+                Z_filtered[i][j] = output;
+            }
+        }
+        figure();
+        surf(X, Y, Z_filtered);
+        show();
+
+        }, py::arg("samples"));
 
     m.def("correlation", [](ResultVector testPlot1, ResultVector testPlot2) {
         std::vector<double> out_plot;
