@@ -13,6 +13,67 @@ const std::vector<std::complex<double>> cplx0;
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
 
+class ResultVector3D {
+public:
+    matplot::vector_2d x;
+    matplot::vector_2d y;
+    matplot::vector_2d z;
+
+    ResultVector3D() = default;
+    ResultVector3D(const matplot::vector_2d& x_plot, const matplot::vector_2d& y_plot, const matplot::vector_2d& z_plot) : x(x_plot), y(y_plot), z(z_plot) {};
+
+    ResultVector3D operator+(const ResultVector3D& other) const {
+        using namespace matplot;
+
+        int samples = x[0].size();
+
+        if (samples != other.x[0].size()) {
+            std::cout << "sizes differ! ";
+            return ResultVector3D(x, y, z);
+        }
+        matplot::vector_2d Z(samples, std::vector<double>(samples));
+        for (int a = 0; a < samples; ++a) {
+            for (int b = 0; b < samples; ++b) {
+                Z[a][b] = z[a][b] + other.z[a][b];
+            }
+        }
+
+        return ResultVector3D(x, y, Z);
+    }
+
+    ResultVector3D operator*(double scalar) const {
+        int samples = x[0].size();
+
+        matplot::vector_2d Z(samples, std::vector<double>(samples));
+        for (int a = 0; a < samples; ++a) {
+            for (int b = 0; b < samples; ++b) {
+                Z[a][b] = z[a][b] * scalar;
+            }
+        }
+
+        return ResultVector3D(x, y, Z);
+    }
+
+    ResultVector3D mul(const ResultVector3D& other) const {
+        int samples = x[0].size();
+
+        if (samples != other.x[0].size()) {
+            std::cout << "sizes differ! ";
+            return ResultVector3D(x, y, z);
+        }
+
+        matplot::vector_2d Z(samples, std::vector<double>(samples));
+        for (int a = 0; a < samples; ++a) {
+            for (int b = 0; b < samples; ++b) {
+                Z[a][b] = z[a][b] * other.z[a][b];
+            }
+        }
+
+        return ResultVector3D(x, y, Z);
+    }
+
+};
+
 class ResultVector {
 public:
     std::vector<double> x;
@@ -40,6 +101,21 @@ public:
             [scalar](double v0) {return (scalar * v0); });
         return ResultVector(x, multiplication, cplx0); // wynik wektor * skalar
     }
+
+    ResultVector3D mul(ResultVector plot2, double startX, double endX, double startY, double endY, int samples) {
+        using namespace matplot;
+
+        auto [X, Y] = meshgrid(linspace(startX, endX, samples), linspace(startY, endY, samples));
+        matplot::vector_2d Z(samples, std::vector<double>(samples));
+        for (int a = 0; a < samples; ++a) {
+            for (int b = 0; b < samples; ++b) {
+                Z[a][b] = y[b] * plot2.y[a];
+            }
+        }
+
+        ResultVector3D result(X, Y, Z);
+        return result;
+    }
 };
 
 int add(int i, int j) {
@@ -59,7 +135,20 @@ PYBIND11_MODULE(_core, m) {
         .def("__mul__", &ResultVector::operator*) //vector * scalar
         .def("__rmul__", [](const ResultVector& vec, double scalar) { //rmul bierze na odwrót argumenty, czyli taki zapis odpowiada scalar * vector
         return vec * scalar;
-            });
+            })
+        .def("mul", &ResultVector::mul, py::arg("plot"), py::arg("startX"), py::arg("endX"), py::arg("startY"), py::arg("endY"), py::arg("samples"));
+
+
+    py::class_<ResultVector3D>(m, "ResultVector3D")
+        .def(py::init<>())
+        .def(py::init<const matplot::vector_2d&, const matplot::vector_2d&, const matplot::vector_2d&>())
+        .def_readwrite("x", &ResultVector3D::x)
+        .def_readwrite("y", &ResultVector3D::y)
+        .def_readwrite("z", &ResultVector3D::z)
+        .def("__add__", &ResultVector3D::operator+)
+        .def("__mul__", &ResultVector3D::operator*)
+        .def("__rmul__", [](const ResultVector3D& vec, double scalar) { return vec * scalar; })
+        .def("mul", &ResultVector3D::mul, py::arg("plot"));
 
 
     m.doc() = R"pbdoc(
@@ -94,6 +183,20 @@ PYBIND11_MODULE(_core, m) {
         show();
         }, py::arg("plot"), R"pbdoc(
         Create function plot
+    )pbdoc");
+
+    m.def("surf", [](ResultVector3D plot) {
+        using namespace matplot;
+        figure();
+        surf(plot.x, plot.y, plot.z);
+        xlabel("x");
+        ylabel("y");
+        zlabel("z");
+        axis(on);
+        grid(on);
+        show();
+        }, py::arg("plot3D"), R"pbdoc(
+        Show surface/2D signal
     )pbdoc");
 
     m.def("add", &add,
@@ -231,7 +334,25 @@ PYBIND11_MODULE(_core, m) {
             plot.y[i] = (pure + noise);
         }
         return plot;
-        }, py::arg("plot"), py::arg("noise_level"));
+        }, py::arg("plot"), py::arg("noise_level"), R"pbdoc(
+            Aply gaussian noise to plot
+    )pbdoc");
+
+    m.def("noise2D", [](ResultVector3D plot, double power) {
+        std::default_random_engine generator(std::random_device{}());
+        std::normal_distribution<double> noise_dist(0.0, power * 0.02);
+
+        for (int i = 0; i < plot.z.size(); ++i) {
+            for (int j = 0; j < plot.z[i].size(); ++j) {
+                double pure = plot.z[i][j];
+                double noise = noise_dist(generator);
+                plot.z[i][j] = (pure + noise);
+            }
+        }
+        return plot;
+        }, py::arg("plot"), py::arg("noise_level"), R"pbdoc(
+            Apply gaussian noise to surface/2D signal
+    )pbdoc");
 
     m.def("filter1D", [](ResultVector testPlot) {
             std::vector<double> filter = {0.006, 0.061, 0.242, 0.383, 0.242, 0.061, 0.006};// filtr gaussa
@@ -258,9 +379,11 @@ PYBIND11_MODULE(_core, m) {
             }
             ResultVector filteredPlot(testPlot.x, out_plot, testPlot.j);
             return filteredPlot;
-        }, py::arg("plot"));
+        }, py::arg("plot"), R"pbdoc(
+            Apply filter to plot
+    )pbdoc");
 
-    m.def("filter2D", [](int samples) {
+    m.def("filter2Dexample", [](int samples) {
         using namespace matplot;
         std::default_random_engine generator(std::random_device{}());
         std::normal_distribution<double> noise_dist(0.0, 10.0);
@@ -317,7 +440,70 @@ PYBIND11_MODULE(_core, m) {
         surf(X, Y, Z_filtered);
         show();
 
-        }, py::arg("samples"));
+        }, py::arg("samples"), R"pbdoc(
+            example of a 2D filter
+            2D signal -> apply gaussian noise -> 2D filter
+    )pbdoc");
+
+    m.def("filter2D", [](ResultVector3D plot, int samples) {
+        using namespace matplot;
+        std::default_random_engine generator(std::random_device{}());
+        std::normal_distribution<double> noise_dist(0.0, 10.0);
+
+        std::vector<std::vector<double>> gausss2dFilter = {
+    {0.0039, 0.0156, 0.0234, 0.0156, 0.0039},
+    {0.0156, 0.0625, 0.0938, 0.0625, 0.0156},
+    {0.0234, 0.0938, 0.1406, 0.0938, 0.0234},
+    {0.0156, 0.0625, 0.0938, 0.0625, 0.0156},
+    {0.0039, 0.0156, 0.0234, 0.0156, 0.0039}
+        };
+
+        double output;
+        auto Z_filtered = plot.z;
+        int offset = gausss2dFilter.size() / 2;
+
+        for (int i = 0; i < samples; ++i) {
+            for (int j = 0; j < samples; ++j) {
+                output = 0.0;
+                for (int m = 0; m < gausss2dFilter.size(); ++m) {
+                    for (int n = 0; n < gausss2dFilter[m].size(); ++n) {
+                        int iPadding = i - offset + m;
+                        if (iPadding < 0) iPadding = 0;
+                        if (iPadding >= samples) iPadding = samples - 1;
+
+                        int jPadding = j - offset + n;
+                        if (jPadding < 0) jPadding = 0;
+                        if (jPadding >= samples) jPadding = samples - 1;
+
+                        output += plot.z[iPadding][jPadding] * gausss2dFilter[m][n];
+                    }
+                }
+                Z_filtered[i][j] = output;
+            }
+        }
+        ResultVector3D result(plot.x, plot.y, Z_filtered);
+        return result;
+
+        }, py::arg("plot"), py::arg("samples"), R"pbdoc(
+            Filter surface/2D signal with Gaussian filter -> return surface/2D signal
+    )pbdoc");
+
+    m.def("multiplyPlots2D", [](ResultVector plot1, ResultVector plot2, double startX, double endX, double startY, double endY, int samples) {
+        using namespace matplot;
+
+        auto [X, Y] = meshgrid(linspace(startX, endX, samples), linspace(startY, endY, samples));
+        matplot::vector_2d Z(samples, std::vector<double>(samples));
+        for (int a = 0; a < samples; ++a) {
+            for (int b = 0; b < samples; ++b) {
+                Z[a][b] = plot1.y[b] * plot2.y[a];
+            }
+        }
+
+        ResultVector3D result(X, Y, Z);
+        return result;
+        }, py::arg("plot1"), py::arg("plot2"), py::arg("startX"), py::arg("endX"), py::arg("startY"), py::arg("endY"), py::arg("samples"), R"pbdoc(
+            Multiply two plots -> returns surface/2D signal
+    )pbdoc");
 
     m.def("correlation", [](ResultVector testPlot1, ResultVector testPlot2) {
         std::vector<double> out_plot;
