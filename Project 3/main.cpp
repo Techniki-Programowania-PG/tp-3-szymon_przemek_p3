@@ -185,6 +185,21 @@ PYBIND11_MODULE(_core, m) {
         Create function plot
     )pbdoc");
 
+    m.def("plotIMG", [](const ResultVector plot, const std::string filename, const std::string title_str, const int sizeX, const int sizeY) {
+        using namespace matplot;
+        auto f = figure(true);
+        f->size(sizeX, sizeY);
+        matplot::plot(plot.x, plot.y);
+        title(title_str);
+        xlabel("x");
+        ylabel("y(x)");
+        axis(on);
+        grid(on);
+        f->save(filename);
+        }, py::arg("plot"), py::arg("filename"), py::arg("title"), py::arg("sizeX"), py::arg("sizeY"), R"pbdoc(
+        Create function plot and save as image with the given filename, title and size
+    )pbdoc");
+
     m.def("surf", [](ResultVector3D plot) {
         using namespace matplot;
         figure();
@@ -195,8 +210,24 @@ PYBIND11_MODULE(_core, m) {
         axis(on);
         grid(on);
         show();
-        }, py::arg("plot3D"), R"pbdoc(
+        }, py::arg("plot2D"), R"pbdoc(
         Show surface/2D signal
+    )pbdoc");
+
+    m.def("surfIMG", [](ResultVector3D plot, const std::string filename, const std::string title_str, const int sizeX, const int sizeY) {
+        using namespace matplot;
+        auto f = figure(true);
+        f->size(sizeX, sizeY);
+        surf(plot.x, plot.y, plot.z);
+        title(title_str);
+        xlabel("x");
+        ylabel("y");
+        zlabel("z");
+        axis(on);
+        grid(on);
+        f->save(filename);
+        }, py::arg("plot2D"), py::arg("filename"), py::arg("title"), py::arg("sizeX"), py::arg("sizeY"), R"pbdoc(
+        Show surface/2D signal and save as image with the given filename and size
     )pbdoc");
 
     m.def("add", &add,
@@ -208,57 +239,57 @@ PYBIND11_MODULE(_core, m) {
         Subtract two numbers
     )pbdoc");
 
-    m.def("sin", [](double f, double y, double start, double end, int samples) {
-        
+    m.def("sin", [](double f, double start, double end, int samples) {
+
         std::vector<double> fsin = matplot::linspace(start, end, samples);
         std::vector<double> ysin;
 
         for (double val : fsin) {
-            ysin.push_back(std::sin(val*f)*y);
+            ysin.push_back(std::sin(val * f));
         }
         ResultVector sinPlot(fsin, ysin, cplx0);
         return sinPlot;
-    }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
+        }, py::arg("frequency"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Create sinus plot
     )pbdoc");
 
-    m.def("cos", [](double f, double y, double start, double end, int samples) {
-        
+    m.def("cos", [](double f, double start, double end, int samples) {
+
         std::vector<double> fcos = matplot::linspace(start, end, samples);
         std::vector<double> ycos;
         for (double val : fcos) {
-            ycos.push_back(std::cos(val*f) * y);
+            ycos.push_back(std::cos(val * f));
         }
         ResultVector cosPlot(fcos, ycos, cplx0);
         return cosPlot;
-        }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
+        }, py::arg("frequency"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Create cosinus plot
     )pbdoc");
 
-    m.def("sqrwave", [](double f, double A, double start, double end, int sample) {
-        
+    m.def("sqrwave", [](double f, double start, double end, int sample) {
+
         std::vector<double> fsqw = matplot::linspace(start, end, sample);
         std::vector<double> ysqw;
         for (double val : fsqw) {
-            if (std::sin(val * f) < 0) ysqw.push_back(-A);
-            else if (std::sin(val * f) > 0) ysqw.push_back(A);
+            if (std::sin(val * f) < 0) ysqw.push_back(-1);
+            else if (std::sin(val * f) > 0) ysqw.push_back(1);
             else ysqw.push_back(0);
         }
         ResultVector sqwPlot(fsqw, ysqw, cplx0);
         return sqwPlot;
-        }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
+        }, py::arg("frequency"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Create square wave plot
     )pbdoc");
 
-    m.def("sawwave", [](double f, double A, double start, double end, int sample) {        
+    m.def("sawwave", [](double f, double start, double end, int sample) {
         std::vector<double> fsaw = matplot::linspace(start, end, sample);
         std::vector<double> ysaw;
         for (double val : fsaw) {
-            ysaw.push_back(((std::fmod((f * (val / matplot::pi)), (2.0))) - 1) * A);
+            ysaw.push_back((std::fmod((f * (val / matplot::pi)), (2.0))) - 1);
         }
         ResultVector sawPlot(fsaw, ysaw, cplx0);
         return sawPlot;
-        }, py::arg("frequency"), py::arg("amplitude"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
+        }, py::arg("frequency"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
         Create sawwave plot
     )pbdoc");
 
@@ -350,7 +381,7 @@ PYBIND11_MODULE(_core, m) {
             }
         }
         return plot;
-        }, py::arg("plot"), py::arg("noise_level"), R"pbdoc(
+        }, py::arg("plot2D"), py::arg("noise_level"), R"pbdoc(
             Apply gaussian noise to surface/2D signal
     )pbdoc");
 
@@ -484,7 +515,7 @@ PYBIND11_MODULE(_core, m) {
         ResultVector3D result(plot.x, plot.y, Z_filtered);
         return result;
 
-        }, py::arg("plot"), py::arg("samples"), R"pbdoc(
+        }, py::arg("plot2D"), py::arg("samples"), R"pbdoc(
             Filter surface/2D signal with Gaussian filter -> return surface/2D signal
     )pbdoc");
 
