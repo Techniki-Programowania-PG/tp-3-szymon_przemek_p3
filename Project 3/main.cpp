@@ -294,6 +294,18 @@ PYBIND11_MODULE(_core, m) {
         Create sawwave plot
     )pbdoc");
 
+    m.def("quadratic", [](double a, double b, double c, double start, double end, int sample) {
+        std::vector<double> x = matplot::linspace(start, end, sample);
+        std::vector<double> y;
+        for (double val : x) {
+            y.push_back(a * val * val + b * val + c);
+        }
+        ResultVector quadPlot(x, y, cplx0, sample);
+        return quadPlot;
+        }, py::arg("a"), py::arg("b"), py::arg("c"), py::arg("start"), py::arg("end"), py::arg("samples"), R"pbdoc(
+        Create quadratic function plot y = ax^2 + bx + c
+    )pbdoc");
+
     m.def("fourier", [](ResultVector testPlot) {
         double size = testPlot.x[(testPlot.x.size() - 1) - testPlot.x[0]];
         int samples = testPlot.x.size();
